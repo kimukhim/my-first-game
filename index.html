@@ -672,8 +672,14 @@
 
   function emoji(ch, x, y, size) {
     ctx.font = `${size}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+    // Some browsers draw emoji using the current fill colour, so make it solid
+    ctx.fillStyle = "#000";
     ctx.fillText(ch, x, y);
   }
+
+  // Older phones can't show the farmer emoji, so fall back to a single emoji
+  ctx.font = '32px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+  const FARMER = ctx.measureText("🧑‍🌾").width > ctx.measureText("🧑").width * 1.5 ? "🤠" : "🧑‍🌾";
 
   function label(text, x, y, size, color) {
     ctx.font = `bold ${size}px "Trebuchet MS", sans-serif`;
@@ -830,7 +836,7 @@
     ctx.beginPath();
     ctx.ellipse(px, py + 15, 12, 5, 0, 0, Math.PI * 2);
     ctx.fill();
-    emoji("🧑‍🌾", px, py - step, 32);
+    emoji(FARMER, px, py - step, 32);
     emoji(TOOLS[state.tool].icon, px + 14, py + 8 - step, 14);
 
     // Square in front of the player
