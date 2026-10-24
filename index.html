@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sunny Valley Farm</title>
+<style>
+  :root {
+    --wood: #c98b4e;
+    --wood-dark: #8a5a2b;
+    --cream: #fff8e7;
+    --text: #3b2a1a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    color: var(--text);
+    background: #5a9e3c;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 16px 24px;
+    min-height: 100vh;
+  }
+  h1 {
+    margin: 0 0 8px;
+    font-size: 1.8rem;
+    color: #fff;
+    text-shadow: 2px 2px 0 var(--wood-dark);
+  }
+  .hud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 8px;
+  }
+  .box {
+    background: var(--cream);
+    border: 3px solid var(--wood);
+    border-radius: 10px;
+    padding: 4px 10px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .meter {
+    width: 90px;
+    height: 12px;
+    background: #ddd;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 2px solid var(--wood-dark);
+  }
+  .meter div { height: 100%; background: #4cd137; transition: width 0.2s; }
+  .meter.blue div { background: #3fa2ff; }
+  canvas {
+    display: block;
+    width: 100%;
+    max-width: 800px;
+    border: 4px solid var(--wood-dark);
+    border-radius: 12px;
+    background: #7ccf5a;
+  }
+  .msg {
+    margin: 8px 0;
+    min-height: 1.6em;
+    background: rgba(255, 255, 255, 0.88);
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-weight: bold;
+    text-align: center;
+    width: 100%;
+    max-width: 800px;
+  }
+  .row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 6px;
+  }
+  .tool, .seed, .btn {
+    font-family: inherit;
+    color: var(--text);
+    background: var(--cream);
+    border: 3px solid var(--wood);
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .tool { padding: 4px 10px; font-size: 0.8rem; min-width: 80px; }
+  .tool .i { display: block; font-size: 1.5rem; }
+  .seed { padding: 2px 8px; font-size: 0.85rem; }
+  .tool.on, .seed.on {
+    background: #ffe28a;
+    border-color: #d18a00;
+    box-shadow: 0 0 0 3px #fff;
+  }
+  .seed.empty { opacity: 0.5; }
+  .btn { padding: 6px 14px; font-weight: bold; font-size: 0.95rem; background: #ffd36b; border-color: var(--wood-dark); }
+  .btn.small { background: var(--cream); font-size: 0.8rem; }
+  .bag {
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 8px;
+    padding: 4px 12px;
+    margin: 4px 0 8px;
+  }
+  .pad { display: none; gap: 24px; align-items: center; margin: 6px 0 10px; user-select: none; -webkit-user-select: none; }
+  .dpad { display: grid; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(3, 52px); gap: 4px; }
+  .dpad button, .abtn {
+    font-size: 1.4rem;
+    border-radius: 12px;
+    border: 3px solid var(--wood-dark);
+    background: var(--cream);
+    touch-action: none;
+  }
+  .abtn { width: 80px; height: 80px; border-radius: 50%; background: #ffd36b; font-weight: bold; }
+  @media (pointer: coarse) { .pad { display: flex; } }
+  .help {
+    max-width: 800px;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 12px;
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    line-height: 1.55;
+  }
+  .help h3 { margin: 6px 0; }
+  kbd {
+    background: #eee;
+    border: 1px solid #bbb;
+    border-bottom-width: 3px;
+    border-radius: 4px;
+    padding: 0 5px;
+    font-size: 0.85em;
+  }
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    z-index: 10;
+  }
+  .panel {
+    background: var(--cream);
+    border: 4px solid var(--wood-dark);
+    border-radius: 14px;
+    padding: 14px 20px;
+    max-width: 520px;
+    width: 100%;
+    max-height: 90vh;
+    overflow: auto;
+    text-align: center;
+  }
+  .panel h2 { margin: 4px 0 8px; }
+  .panel .btns { display: flex; gap: 10px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+  .shoprow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-align: left;
+    border-bottom: 2px dashed #e0c9a6;
+    padding: 6px 0;
+  }
+  .shoprow .big { font-size: 2rem; }
+  .shoprow .info { flex: 1; }
+  .shoprow .btn { padding: 4px 8px; font-size: 0.8rem; }
+  .note { color: #b23a00; font-weight: bold; min-height: 1.2em; }
+</style>
+</head>
+<body>
+  <h1>🌻 Sunny Valley Farm 🐔</h1>
+
+  <div class="hud">
+    <div class="box">📅 <span id="day"></span></div>
+    <div class="box">🕒 <span id="clock"></span></div>
+    <div class="box">💰 <span id="gold"></span> G</div>
+    <div class="box">⚡ <div class="meter"><div id="energy"></div></div></div>
+    <div class="box">💧 <div class="meter blue"><div id="water"></div></div></div>
+  </div>
+
+  <canvas id="game" width="800" height="560"></canvas>
+
+  <div class="msg" id="msg">Welcome to your farm!</div>
+
+  <div class="pad">
+    <div class="dpad">
+      <span></span><button data-dir="up">⬆️</button><span></span>
+      <button data-dir="left">⬅️</button><span></span><button data-dir="right">➡️</button>
+      <span></span><button data-dir="down">⬇️</button><span></span>
+    </div>
+    <button class="abtn" id="aBtn">USE</button>
+  </div>
+
+  <div class="row" id="tools"></div>
+  <div class="row" id="seeds"></div>
+  <div class="bag" id="bag"></div>
+
+  <div class="help">
+    <h3>How to play</h3>
+    🚶 Walk with the <kbd>arrow keys</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>.
+    Press <kbd>Space</kbd> to use your tool on the square in front of you (it has a white outline).<br>
+    🧰 Switch tools with <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd>, and change seeds with <kbd>Q</kbd>.<br>
+    ⛏️ <b>Dig</b> the light green field → 🌱 <b>plant</b> seeds → 💧 <b>water</b> them every day → ✋ <b>harvest</b> when they're ready.<br>
+    📦 Put your harvest in the <b>shipping bin</b> next to your house. You get paid the next morning.<br>
+    🏪 Buy new seeds at the <b>shop</b>. 💧 Refill your watering can at the <b>pond</b>.<br>
+    🐔 Pet your chicken every day and she'll lay an egg for you.<br>
+    🏠 Go into your <b>house</b> to sleep. Plants only grow overnight if they were watered!
+    Don't stay up past midnight or you'll faint. 😵
+    <div class="row" style="margin-top:8px"><button class="btn small" id="reset">Start a new farm</button></div>
+  </div>
+
+  <div class="overlay" id="overlay"><div class="panel" id="panel"></div></div>
+
+<script>
+  // ---------- Game settings ----------
+  const T = 40, W = 20, H = 14;
+  const GRASS = 0, FIELD = 1, TILLED = 2, TREE = 3, HOUSE = 4, BIN = 5, SHOP = 6, POND = 7, COOP = 8, PATH = 9;
+  const WALKABLE = new Set([GRASS, FIELD, TILLED, PATH]);
+
+  const CROPS = {
+    carrot:  { name: "Carrot",  icon: "🥕", price: 10, days: 3,  sell: 25 },
+    potato:  { name: "Potato",  icon: "🥔", price: 15, days: 4,  sell: 40 },
+    tomato:  { name: "Tomato",  icon: "🍅", price: 25, days: 6,  sell: 75 },
+    corn:    { name: "Corn",    icon: "🌽", price: 35, days: 8,  sell: 110 },
+    pumpkin: { name: "Pumpkin", icon: "🎃", price: 60, days: 10, sell: 220 },
+  };
+  const ITEMS = { egg: { name: "Egg", icon: "🥚", sell: 30 } };
+  for (const id in CROPS) ITEMS[id] = { name: CROPS[id].name, icon: CROPS[id].icon, sell: CROPS[id].sell };
+
+  const TOOLS = {
+    hoe:   { name: "Hoe",   icon: "⛏️", tip: "⛏️ Hoe: dig the light green field to make soil for planting." },
+    water: { name: "Water", icon: "🚿", tip: "🚿 Watering can: water your tilled soil and plants." },
+    seeds: { name: "Seeds", icon: "🌱", tip: "🌱 Seeds: plant them in tilled soil. Press Q to change seeds." },
+    hand:  { name: "Hand",  icon: "✋", tip: "✋ Hand: harvest ready crops and pull out weeds." },
+  };
+  const TOOL_ORDER = ["hoe", "water", "seeds", "hand"];
+  const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+  const MAX_ENERGY = 100, MAX_WATER = 20;
+  const MOVE_TIME = 0.14;       // seconds to walk one square
+  const GAME_MIN_PER_SEC = 6.5; // how fast the clock runs
+  const PEN = { x1: 13, y1: 7, x2: 18, y2: 12 };
+  const SAVE_KEY = "sunny-valley-farm-v1";
+
+  const key = (x, y) => x + "," + y;
+
+  // ---------- Making a new farm ----------
+  function makeMap() {
+    const extraTrees = [[8, 1], [10, 1], [12, 2], [1, 12], [12, 12]];
+    const map = [];
+    for (let y = 0; y < H; y++) {
+      const row = [];
+      for (let x = 0; x < W; x++) {
+        let t = GRASS;
+        if (x === 0 || y === 0 || x === W - 1 || y === H - 1) t = TREE;
+        else if (x >= 1 && x <= 4 && y >= 1 && y <= 3) t = HOUSE;
+        else if (x >= 2 && x <= 11 && y >= 6 && y <= 12) t = FIELD;
+        else if (x >= 16 && x <= 18 && y >= 1 && y <= 2) t = SHOP;
+        else if (x >= 14 && x <= 15 && y >= 4 && y <= 5) t = POND;
+        else if (x >= 16 && x <= 18 && y >= 9 && y <= 10) t = COOP;
+        else if (x === 6 && y === 3) t = BIN;
+        else if (y === 4 && x >= 1 && x <= 12) t = PATH;
+        if (extraTrees.some(([tx, ty]) => tx === x && ty === y)) t = TREE;
+        row.push(t);
+      }
+      map.push(row);
+    }
+    return map;
+  }
+
+  function newGame() {
+    const s = {
+      day: 1, time: 360, gold: 100, energy: MAX_ENERGY, water: MAX_WATER, rain: false,
+      tool: "hoe", seedType: "carrot",
+      seeds: { carrot: 6, potato: 0, tomato: 0, corn: 0, pumpkin: 0 },
+      bag: {}, ship: {},
+      map: makeMap(), wet: {}, crops: {}, weeds: {}, eggs: {},
+      player: { x: 3, y: 5, face: "down" },
+      chicken: { x: 14, y: 11, petted: false },
+    };
+    for (const [x, y] of [[3, 7], [6, 8], [9, 10], [4, 11], [10, 7], [7, 12], [2, 9], [11, 11]]) {
+      s.weeds[key(x, y)] = true;
+    }
+    return s;
+  }
+
+  function loadGame() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+      return s && Array.isArray(s.map) ? s : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function save() {
+    state.player = { x: p.x, y: p.y, face: p.face };
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  // ---------- Game state ----------
+  const loaded = loadGame();
+  let state = loaded || newGame();
+  let p = { x: state.player.x, y: state.player.y, tx: state.player.x, ty: state.player.y, t: 0, moving: false, face: state.player.face };
+  let chickenDraw = { x: state.chicken.x, y: state.chicken.y };
+  let chickenTimer = 1;
+  let heldDirs = [];
+  let pendingDir = null;
+  let paused = false;
+  let pops = [];
+  let saveTimer = 0;
+
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  const $ = (id) => document.getElementById(id);
+
+  function tileAt(x, y) {
+    if (x < 0 || y < 0 || x >= W || y >= H) return TREE;
+    return state.map[y][x];
+  }
+
+  function inPen(x, y) {
+    return x >= PEN.x1 && x <= PEN.x2 && y >= PEN.y1 && y <= PEN.y2;
+  }
+
+  function canWalk(x, y) {
+    return WALKABLE.has(tileAt(x, y)) &&
+      !(state.chicken.x === x && state.chicken.y === y) &&
+      !state.eggs[key(x, y)];
+  }
+
+  function chickenCanWalk(x, y) {
+    return inPen(x, y) && WALKABLE.has(tileAt(x, y)) &&
+      !(p.x === x && p.y === y) && !(p.tx === x && p.ty === y) &&
+      !state.eggs[key(x, y)];
+  }
+
+  function say(text) { $("msg").textContent = text; }
+
+  function pop(x, y, text) { pops.push({ x, y, text, life: 1 }); }
+
+  function changed() {
+    renderTools();
+    save();
+  }
+
+  function addBag(id, n) { state.bag[id] = (state.bag[id] || 0) + n; }
+
+  function useEnergy(n) {
+    if (state.energy < n) {
+      say("😴 You're too tired! Go home and sleep.");
+      return false;
+    }
+    state.energy -= n;
+    return true;
+  }
+
+  function randomFrom(list) {
+    return list.length ? list[Math.floor(Math.random() * list.length)] : null;
+  }
+
+  // ---------- Using tools ----------
+  function act() {
+    if (paused || p.moving) return;
+    const [dx, dy] = DIRS[p.face];
+    const x = p.x + dx, y = p.y + dy, k = key(x, y), t = tileAt(x, y);
+
+    if (t === HOUSE) return askSleep();
+    if (t === SHOP) return openShop();
+    if (t === BIN) return shipItems();
+    if (t === POND) {
+      state.water = MAX_WATER;
+      say("💧 You filled your watering can!");
+      return changed();
+    }
+    if (t === COOP) return say("🐔 This is the chicken coop. Pet your chicken every day and she'll lay eggs!");
+    if (state.chicken.x === x && state.chicken.y === y) return petChicken(x, y);
+    if (state.eggs[k]) {
+      delete state.eggs[k];
+      addBag("egg", 1);
+      pop(x, y, "+1 🥚");
+      say("You picked up a fresh egg! Put it in the shipping bin to sell it.");
+      return changed();
+    }
+
+    const crop = state.crops[k];
+    switch (state.tool) {
+      case "hoe":
+        if (state.weeds[k]) return say("There's a weed here. Use your ✋ hand (press 4) to pull it out first.");
+        if (t === FIELD) {
+          if (!useEnergy(2)) return;
+          state.map[y][x] = TILLED;
+          if (state.rain) state.wet[k] = true;
+          say("You dug the soil. Now plant some seeds! 🌱 (press 3)");
+          return changed();
+        }
+        if (t === TILLED) return say(crop ? "Careful! A plant is growing here." : "This soil is ready. Plant seeds with 🌱 (press 3).");
+        return say("You can only dig in the farm field (the light green area).");
+
+      case "water":
+        if (t !== TILLED) return say("Water the brown soil where your plants grow.");
+        if (state.wet[k]) return say("This soil is already wet. 💧");
+        if (state.water <= 0) return say("Your watering can is empty! Fill it at the pond. 💧");
+        if (!useEnergy(1)) return;
+        state.water--;
+        state.wet[k] = true;
+        say(crop ? "Splash! 💧 Your plant will grow tonight." : "Splash! The soil is wet.");
+        return changed();
+
+      case "seeds": {
+        const c = CROPS[state.seedType];
+        if (t !== TILLED) return say("Use the ⛏️ hoe (press 1) to dig the soil before planting.");
+        if (crop) return say("Something is already planted here.");
+        if (state.seeds[state.seedType] <= 0) return say(`You have no ${c.name} seeds. Buy more at the shop! 🏪`);
+        state.seeds[state.seedType]--;
+        state.crops[k] = { type: state.seedType, days: 0 };
+        say(`You planted ${c.name} seeds! Water them every day. They need ${c.days} days to grow.`);
+        return changed();
+      }
+
+      case "hand":
+        if (state.weeds[k]) {
+          if (!useEnergy(1)) return;
+          delete state.weeds[k];
+          say("You pulled out a weed! 🌾");
+          return changed();
+        }
+        if (crop) {
+          const c = CROPS[crop.type];
+          if (crop.days >= c.days) {
+            delete state.crops[k];
+            addBag(crop.type, 1);
+            pop(x, y, "+1 " + c.icon);
+            say(`You harvested a ${c.name}! Put it in the shipping bin 📦 to sell it.`);
+            return changed();
+          }
+          const left = c.days - crop.days;
+          return say(`This ${c.name} needs ${left} more day${left > 1 ? "s" : ""} of water to grow.`);
+        }
+        return say("Nothing to pick up here.");
+    }
+  }
+
+  function petChicken(x, y) {
+    pop(x, y, "❤️");
+    if (!state.chicken.petted) {
+      state.chicken.petted = true;
+      say("🐔 Cluck! Your chicken loves you. Look for an egg tomorrow morning!");
+    } else {
+      say("🐔 Cluck cluck! She's very happy today.");
+    }
+    changed();
+  }
+
+  function shipItems() {
+    const ids = Object.keys(state.bag);
+    if (!ids.length) return say("📦 Shipping bin: put your harvest here to sell it. Your bag is empty right now.");
+    let count = 0;
+    for (const id of ids) {
+      state.ship[id] = (state.ship[id] || 0) + state.bag[id];
+      count += state.bag[id];
+    }
+    state.bag = {};
+    say(`📦 You put ${count} item${count > 1 ? "s" : ""} in the shipping bin. You'll get paid tomorrow morning!`);
+    changed();
+  }
+
+  // ---------- Popup windows ----------
+  function showOverlay(html, buttons) {
+    paused = true;
+    heldDirs = [];
+    pendingDir = null;
+    const panel = $("panel");
+    panel.innerHTML = html + '<div class="btns"></div>';
+    const box = panel.querySelector(".btns");
+    for (const [label, fn] of buttons) {
+      const b = document.createElement("button");
+      b.className = "btn";
+      b.textContent = label;
+      b.onclick = fn;
+      box.appendChild(b);
+    }
+    $("overlay").style.display = "flex";
+  }
+
+  function closeOverlay() {
+    $("overlay").style.display = "none";
+    paused = false;
+  }
+
+  function askSleep() {
+    showOverlay(`<h2>🏠 Home sweet home</h2><p>Go to bed and end Day ${state.day}?</p>`, [
+      ["Sleep 💤", () => sleep(false)],
+      ["Not yet", closeOverlay],
+    ]);
+  }
+
+  function openShop(note = "") {
+    const rows = Object.entries(CROPS).map(([id, c]) => `
+      <div class="shoprow">
+        <span class="big">${c.icon}</span>
+        <div class="info"><b>${c.name} seeds</b> · ${c.price} G each<br>
+          <small>Grows in ${c.days} days · sells for ${c.sell} G · you have ${state.seeds[id]}</small></div>
+        <button class="btn" data-buy="${id}" data-n="1">Buy 1</button>
+        <button class="btn" data-buy="${id}" data-n="5">Buy 5</button>
+      </div>`).join("");
+    showOverlay(`<h2>🏪 Seed Shop</h2><p>You have <b>${state.gold} G</b></p><div class="note">${note}</div>${rows}`, [
+      ["Leave shop", closeOverlay],
+    ]);
+    $("panel").querySelectorAll("[data-buy]").forEach((b) => {
+      b.onclick = () => {
+        const id = b.dataset.buy, n = Number(b.dataset.n), cost = CROPS[id].price * n;
+        if (state.gold < cost) return openShop(`You need ${cost} G for that. Grow and sell more crops!`);
+        state.gold -= cost;
+        state.seeds[id] += n;
+        state.seedType = id;
+        changed();
+        openShop(`Thank you! You bought ${n} ${CROPS[id].name} seed${n > 1 ? "s" : ""}. ${CROPS[id].icon}`);
+      };
+    });
+  }
+
+  // ---------- A new day ----------
+  function sleep(passedOut) {
+    let earned = 0;
+    const lines = [];
+    for (const [id, n] of Object.entries(state.ship)) {
+      earned += ITEMS[id].sell * n;
+      lines.push(`${ITEMS[id].icon} ${ITEMS[id].name} × ${n} = ${ITEMS[id].sell * n} G`);
+    }
+    state.gold += earned;
+    state.ship = {};
+
+    for (const [k, crop] of Object.entries(state.crops)) {
+      if (state.wet[k]) crop.days++;
+    }
+    state.wet = {};
+
+    let eggMsg = "";
+    if (state.chicken.petted) {
+      const spot = randomFrom(penSpots());
+      if (spot) {
+        state.eggs[key(spot[0], spot[1])] = true;
+        eggMsg = "<p>🥚 Your chicken laid an egg! Go find it in the pen.</p>";
+      }
+    }
+    state.chicken.petted = false;
+
+    for (let i = 0; i < 2; i++) {
+      const spot = randomFrom(fieldSpots());
+      if (spot) state.weeds[key(spot[0], spot[1])] = true;
+    }
+
+    state.day++;
+    state.time = 360;
+    state.energy = passedOut ? MAX_ENERGY / 2 : MAX_ENERGY;
+    state.rain = Math.random() < 0.2;
+    if (state.rain) {
+      for (let y = 0; y < H; y++)
+        for (let x = 0; x < W; x++)
+          if (state.map[y][x] === TILLED) state.wet[key(x, y)] = true;
+    }
+    p = { x: 2, y: 4, tx: 2, ty: 4, t: 0, moving: false, face: "down" };
+    save();
+    renderTools();
+
+    showOverlay(
+      `<h2>☀️ Good morning! Day ${state.day}</h2>` +
+      (passedOut ? "<p>😵 You stayed up too late and fainted! You only have half your energy today.</p>" : "") +
+      (lines.length
+        ? `<p><b>Money from the shipping bin:</b><br>${lines.join("<br>")}<br><b>Total: ${earned} G</b></p>`
+        : "<p>Nothing was shipped yesterday.</p>") +
+      eggMsg +
+      (state.rain ? "<p>🌧️ It's raining today, so all your plants are watered!</p>" : ""),
+      [["Start the day!", closeOverlay]]
+    );
+    say(state.rain ? "🌧️ A rainy day. Your plants are watered for free!" : "☀️ A sunny new day on the farm!");
+  }
+
+  function penSpots() {
+    const list = [];
+    for (let y = PEN.y1; y <= PEN.y2; y++)
+      for (let x = PEN.x1; x <= PEN.x2; x++)
+        if (chickenCanWalk(x, y) && !(state.chicken.x === x && state.chicken.y === y)) list.push([x, y]);
+    return list;
+  }
+
+  function fieldSpots() {
+    const list = [];
+    for (let y = 0; y < H; y++)
+      for (let x = 0; x < W; x++)
+        if (state.map[y][x] === FIELD && !state.weeds[key(x, y)] && !(p.x === x && p.y === y)) list.push([x, y]);
+    return list;
+  }
+
+  // ---------- Buttons under the game ----------
+  function selectTool(t) {
+    if (t === "seeds" && state.tool === "seeds") return cycleSeed();
+    state.tool = t;
+    say(TOOLS[t].tip);
+    changed();
+  }
+
+  function cycleSeed() {
+    const ids = Object.keys(CROPS);
+    let i = ids.indexOf(state.seedType);
+    for (let n = 0; n < ids.length; n++) {
+      i = (i + 1) % ids.length;
+      if (state.seeds[ids[i]] > 0) break;
+    }
+    state.seedType = ids[i];
+    state.tool = "seeds";
+    say(`🌱 ${CROPS[state.seedType].name} seeds selected (you have ${state.seeds[state.seedType]}).`);
+    changed();
+  }
+
+  function renderTools() {
+    const tools = $("tools");
+    tools.innerHTML = "";
+    TOOL_ORDER.forEach((id, i) => {
+      const t = TOOLS[id];
+      const b = document.createElement("button");
+      b.className = "tool" + (state.tool === id ? " on" : "");
+      b.innerHTML = `<span class="i">${t.icon}</span>${i + 1}. ${t.name}`;
+      b.onclick = () => selectTool(id);
+      tools.appendChild(b);
+    });
+
+    const seeds = $("seeds");
+    seeds.innerHTML = "";
+    for (const [id, c] of Object.entries(CROPS)) {
+      const b = document.createElement("button");
+      b.className = "seed" + (state.seedType === id ? " on" : "") + (state.seeds[id] ? "" : " empty");
+      b.textContent = `${c.icon} ${state.seeds[id]}`;
+      b.title = `${c.name} seeds`;
+      b.onclick = () => {
+        state.seedType = id;
+        state.tool = "seeds";
+        say(`🌱 ${c.name} seeds selected (you have ${state.seeds[id]}).`);
+        changed();
+      };
+      seeds.appendChild(b);
+    }
+
+    const items = Object.entries(state.bag).map(([id, n]) => `${ITEMS[id].icon} × ${n}`);
+    const shipped = Object.values(state.ship).reduce((a, b) => a + b, 0);
+    $("bag").innerHTML = `🎒 <b>Bag:</b> ${items.length ? items.join(" &nbsp; ") : "empty"}` +
+      (shipped ? ` &nbsp;|&nbsp; 📦 In shipping bin: ${shipped}` : "");
+  }
+
+  function updateHUD() {
+    $("day").textContent = `Day ${state.day}` + (state.rain ? " 🌧️" : " ☀️");
+    const mins = Math.floor(state.time);
+    let h = Math.floor(mins / 60) % 24;
+    const m = Math.floor((mins % 60) / 10) * 10;
+    const ampm = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    $("clock").textContent = `${h}:${String(m).padStart(2, "0")} ${ampm}`;
+    $("gold").textContent = state.gold;
+    $("energy").style.width = (state.energy / MAX_ENERGY) * 100 + "%";
+    $("water").style.width = (state.water / MAX_WATER) * 100 + "%";
+  }
+
+  // ---------- Drawing ----------
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  function emoji(ch, x, y, size) {
+    ctx.font = `${size}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+    ctx.fillText(ch, x, y);
+  }
+
+  function label(text, x, y, size, color) {
+    ctx.font = `bold ${size}px "Trebuchet MS", sans-serif`;
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
+  }
+
+  function drawTile(x, y) {
+    const t = state.map[y][x], X = x * T, Y = y * T, k = key(x, y);
+    ctx.fillStyle = (x + y) % 2 ? "#7ccf5a" : "#76c755";
+    ctx.fillRect(X, Y, T, T);
+
+    if (t === FIELD) {
+      ctx.fillStyle = (x + y) % 2 ? "#a6d977" : "#9fd36f";
+      ctx.fillRect(X, Y, T, T);
+    } else if (t === TILLED) {
+      ctx.fillStyle = state.wet[k] ? "#5c3a1a" : "#946036";
+      ctx.fillRect(X + 1, Y + 1, T - 2, T - 2);
+      ctx.strokeStyle = "rgba(0,0,0,0.18)";
+      ctx.lineWidth = 2;
+      for (let i = 1; i < 4; i++) {
+        ctx.beginPath();
+        ctx.moveTo(X + 5, Y + i * 10);
+        ctx.lineTo(X + T - 5, Y + i * 10);
+        ctx.stroke();
+      }
+    } else if (t === PATH) {
+      ctx.fillStyle = "#d8c08a";
+      ctx.fillRect(X, Y, T, T);
+    } else if (t === TREE) {
+      emoji("🌳", X + T / 2, Y + T / 2 + 2, 32);
+    } else if (t === GRASS && (x * 7 + y * 13) % 11 === 0) {
+      emoji("🌼", X + T / 2, Y + T / 2, 14);
+    }
+  }
+
+  function drawBuildings() {
+    // House
+    let X = 1 * T, Y = 1 * T, w = 4 * T, h = 3 * T;
+    ctx.fillStyle = "#f3d9b1";
+    ctx.fillRect(X + 8, Y + 44, w - 16, h - 44);
+    ctx.fillStyle = "#c94c3c";
+    ctx.beginPath();
+    ctx.moveTo(X - 2, Y + 50);
+    ctx.lineTo(X + w / 2, Y + 2);
+    ctx.lineTo(X + w + 2, Y + 50);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#7a4a22";
+    ctx.fillRect(X + 48, Y + 78, 28, 42);
+    ctx.fillStyle = "#9fd8ff";
+    ctx.fillRect(X + 100, Y + 64, 26, 22);
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(X + 100, Y + 64, 26, 22);
+    label("HOME", X + w / 2, Y + 36, 13, "#fff");
+
+    // Shipping bin
+    X = 6 * T; Y = 3 * T;
+    ctx.fillStyle = "#a8692f";
+    ctx.fillRect(X + 3, Y + 8, T - 6, T - 10);
+    ctx.fillStyle = "#c98b4e";
+    ctx.fillRect(X + 1, Y + 4, T - 2, 8);
+    emoji("📦", X + T / 2, Y + T / 2 + 4, 20);
+
+    // Shop
+    X = 16 * T; Y = 1 * T; w = 3 * T; h = 2 * T;
+    ctx.fillStyle = "#c98b4e";
+    ctx.fillRect(X, Y + 34, w, h - 34);
+    for (let i = 0; i < 6; i++) {
+      ctx.fillStyle = i % 2 ? "#fff" : "#e8453c";
+      ctx.fillRect(X + i * 20, Y + 4, 20, 28);
+    }
+    label("SEED SHOP", X + w / 2, Y + 50, 13, "#fff");
+    emoji("🌱", X + 20, Y + 68, 16);
+    emoji("🥕", X + 60, Y + 68, 16);
+    emoji("🎃", X + 100, Y + 68, 16);
+
+    // Pond
+    X = 14 * T; Y = 4 * T;
+    ctx.fillStyle = "#4aa3df";
+    ctx.beginPath();
+    ctx.ellipse(X + T, Y + T, T - 2, T - 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.6)";
+    ctx.lineWidth = 2;
+    const r = (performance.now() / 120) % 14;
+    ctx.beginPath();
+    ctx.ellipse(X + T - 8, Y + T + 4, 6 + r, 3 + r / 2, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    emoji("🐟", X + T + 14, Y + T - 10, 14);
+
+    // Chicken pen fence
+    ctx.strokeStyle = "#e8d3a8";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([8, 5]);
+    ctx.strokeRect(PEN.x1 * T + 2, PEN.y1 * T + 2, (PEN.x2 - PEN.x1 + 1) * T - 4, (PEN.y2 - PEN.y1 + 1) * T - 4);
+    ctx.setLineDash([]);
+
+    // Coop
+    X = 16 * T; Y = 9 * T; w = 3 * T; h = 2 * T;
+    ctx.fillStyle = "#e8b878";
+    ctx.fillRect(X + 6, Y + 28, w - 12, h - 28);
+    ctx.fillStyle = "#a0522d";
+    ctx.beginPath();
+    ctx.moveTo(X, Y + 32);
+    ctx.lineTo(X + w / 2, Y + 2);
+    ctx.lineTo(X + w, Y + 32);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#5a3215";
+    ctx.beginPath();
+    ctx.arc(X + w / 2, Y + 62, 12, Math.PI, 0);
+    ctx.fill();
+    ctx.fillRect(X + w / 2 - 12, Y + 62, 24, 18);
+    label("COOP", X + w / 2, Y + 42, 11, "#5a3215");
+  }
+
+  function drawThings(now) {
+    const bob = Math.sin(now / 250) * 2;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const k = key(x, y), X = x * T + T / 2, Y = y * T + T / 2;
+        if (state.weeds[k]) emoji("🌾", X, Y, 24);
+        if (state.eggs[k]) emoji("🥚", X, Y + bob, 20);
+        const crop = state.crops[k];
+        if (!crop) continue;
+        const c = CROPS[crop.type];
+        if (crop.days >= c.days) {
+          emoji(c.icon, X, Y + bob, 28);
+        } else if (crop.days === 0) {
+          ctx.fillStyle = "#2b1a0c";
+          for (const [ox, oy] of [[-7, -4], [6, -6], [0, 6]]) {
+            ctx.beginPath();
+            ctx.arc(X + ox, Y + oy, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else if (crop.days < c.days / 2) {
+          emoji("🌱", X, Y, 22);
+        } else {
+          emoji("🌿", X, Y, 26);
+        }
+      }
+    }
+
+    // Chicken
+    emoji("🐔", chickenDraw.x * T + T / 2, chickenDraw.y * T + T / 2 + bob / 2, 28);
+
+    // Player
+    const px = (p.x + (p.tx - p.x) * p.t) * T + T / 2;
+    const py = (p.y + (p.ty - p.y) * p.t) * T + T / 2;
+    const step = p.moving ? Math.abs(Math.sin(p.t * Math.PI)) * 4 : 0;
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.beginPath();
+    ctx.ellipse(px, py + 15, 12, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    emoji("🧑‍🌾", px, py - step, 32);
+    emoji(TOOLS[state.tool].icon, px + 14, py + 8 - step, 14);
+
+    // Square in front of the player
+    if (!p.moving && !paused) {
+      const [dx, dy] = DIRS[p.face];
+      ctx.strokeStyle = "rgba(255,255,255,0.9)";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 4]);
+      ctx.strokeRect((p.x + dx) * T + 2, (p.y + dy) * T + 2, T - 4, T - 4);
+      ctx.setLineDash([]);
+    }
+  }
+
+  function drawSky(now) {
+    if (state.rain) {
+      ctx.fillStyle = "rgba(60,70,90,0.18)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "rgba(200,220,255,0.6)";
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 70; i++) {
+        const x = (i * 97 + now / 3) % canvas.width;
+        const y = (i * 53 + now / 1.5) % canvas.height;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - 4, y + 12);
+        ctx.stroke();
+      }
+    }
+    if (state.time > 1080) {
+      const a = Math.min(0.45, ((state.time - 1080) / 240) * 0.45);
+      ctx.fillStyle = `rgba(20,20,70,${a})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+
+  function drawPops(dt) {
+    pops = pops.filter((pp) => (pp.life -= dt) > 0);
+    for (const pp of pops) {
+      ctx.globalAlpha = pp.life;
+      emoji(pp.text, pp.x * T + T / 2, pp.y * T - (1 - pp.life) * 30, 18);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function draw(now, dt) {
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) drawTile(x, y);
+    drawBuildings();
+    drawThings(now);
+    drawSky(now);
+    drawPops(dt);
+  }
+
+  // ---------- Game loop ----------
+  function update(dt) {
+    if (p.moving) {
+      p.t += dt / MOVE_TIME;
+      if (p.t >= 1) {
+        p.x = p.tx;
+        p.y = p.ty;
+        p.t = 0;
+        p.moving = false;
+      }
+    }
+    if (!p.moving && !paused) {
+      const dir = heldDirs[heldDirs.length - 1] || pendingDir;
+      pendingDir = null;
+      if (dir) {
+        p.face = dir;
+        const [dx, dy] = DIRS[dir];
+        if (canWalk(p.x + dx, p.y + dy)) {
+          p.tx = p.x + dx;
+          p.ty = p.y + dy;
+          p.t = 0;
+          p.moving = true;
+        }
+      }
+    }
+
+    // Chicken wanders around the pen
+    chickenTimer -= dt;
+    if (chickenTimer <= 0 && !paused) {
+      chickenTimer = 1 + Math.random() * 2;
+      const [dx, dy] = DIRS[randomFrom(Object.keys(DIRS))];
+      const nx = state.chicken.x + dx, ny = state.chicken.y + dy;
+      if (chickenCanWalk(nx, ny)) {
+        state.chicken.x = nx;
+        state.chicken.y = ny;
+      }
+    }
+    const ease = Math.min(1, dt * 8);
+    chickenDraw.x += (state.chicken.x - chickenDraw.x) * ease;
+    chickenDraw.y += (state.chicken.y - chickenDraw.y) * ease;
+
+    if (!paused) {
+      state.time += dt * GAME_MIN_PER_SEC;
+      if (state.time >= 1440) {
+        state.time = 1440;
+        sleep(true);
+      }
+      saveTimer += dt;
+      if (saveTimer > 5) {
+        saveTimer = 0;
+        save();
+      }
+    }
+  }
+
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    update(dt);
+    draw(now, dt);
+    updateHUD();
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- Controls ----------
+  const KEYMAP = {
+    ArrowUp: "up", KeyW: "up", ArrowDown: "down", KeyS: "down",
+    ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right",
+  };
+
+  window.addEventListener("keydown", (e) => {
+    if (paused) {
+      if (e.code === "Escape" && !$("panel").textContent.includes("Good morning")) closeOverlay();
+      return;
+    }
+    const dir = KEYMAP[e.code];
+    if (dir) {
+      e.preventDefault();
+      if (!heldDirs.includes(dir)) heldDirs.push(dir);
+      pendingDir = dir;
+      return;
+    }
+    if (e.code === "Space" || e.code === "KeyE" || e.code === "Enter") {
+      e.preventDefault();
+      if (!e.repeat) act();
+      return;
+    }
+    if (e.key >= "1" && e.key <= "4") selectTool(TOOL_ORDER[Number(e.key) - 1]);
+    if (e.code === "KeyQ") cycleSeed();
+  });
+
+  window.addEventListener("keyup", (e) => {
+    const dir = KEYMAP[e.code];
+    if (dir) heldDirs = heldDirs.filter((d) => d !== dir);
+  });
+
+  window.addEventListener("blur", () => { heldDirs = []; });
+
+  document.querySelectorAll("[data-dir]").forEach((b) => {
+    const dir = b.dataset.dir;
+    b.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      if (!heldDirs.includes(dir)) heldDirs.push(dir);
+      pendingDir = dir;
+    });
+    const stop = () => { heldDirs = heldDirs.filter((d) => d !== dir); };
+    b.addEventListener("pointerup", stop);
+    b.addEventListener("pointerleave", stop);
+    b.addEventListener("pointercancel", stop);
+  });
+  $("aBtn").addEventListener("click", act);
+
+  $("reset").onclick = () => {
+    if (!confirm("Start a brand new farm? Your current farm will be lost.")) return;
+    state = newGame();
+    p = { x: 3, y: 5, tx: 3, ty: 5, t: 0, moving: false, face: "down" };
+    chickenDraw = { x: state.chicken.x, y: state.chicken.y };
+    save();
+    renderTools();
+    say("A fresh new farm! Start by digging the light green field. ⛏️");
+  };
+
+  // ---------- Start ----------
+  renderTools();
+  updateHUD();
+  requestAnimationFrame(loop);
+
+  if (!loaded) {
+    showOverlay(
+      `<h2>🌻 Welcome to Sunny Valley Farm!</h2>
+       <p>Your grandpa left you this little farm. Can you make it grow?</p>
+       <p>🚶 Walk with the <b>arrow keys</b>.<br>
+       ⛏️ Press <b>Space</b> to dig the light green field.<br>
+       🌱 Press <b>3</b>, then <b>Space</b> to plant carrot seeds.<br>
+       🚿 Press <b>2</b>, then <b>Space</b> to water them.<br>
+       🏠 Walk to your house and press <b>Space</b> to sleep.</p>
+       <p>Water your plants every day and they'll be ready in a few days!</p>`,
+      [["Let's farm! 🚜", () => { closeOverlay(); say("Start by digging the light green field with your hoe. ⛏️"); }]]
+    );
+  } else {
+    say(`Welcome back! It's Day ${state.day} on your farm.`);
+  }
+</script>
+</body>
+</html>
