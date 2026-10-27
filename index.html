@@ -204,7 +204,8 @@
   <div class="help">
     <h3>How to play</h3>
     🚶 Walk with the <kbd>arrow keys</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>.
-    Press <kbd>Space</kbd> to use your tool on the square in front of you (it has a white outline).<br>
+    Press <kbd>Space</kbd> to use your tool on the square in front of you (it has a white outline).
+    Tap an arrow quickly to <b>turn without walking</b>, or click a square next to the farmer to use your tool there.<br>
     🧰 Switch tools with <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd>, and change seeds with <kbd>Q</kbd>.<br>
     ⛏️ <b>Dig</b> the light green field → 🌱 <b>plant</b> seeds → 💧 <b>water</b> them every day → ✋ <b>harvest</b> when they're ready.<br>
     📦 Put your harvest in the <b>shipping bin</b> next to your house. You get paid the next morning.<br>
@@ -243,6 +244,7 @@
   const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
   const MAX_ENERGY = 100, MAX_WATER = 20;
   const MOVE_TIME = 0.14;       // seconds to walk one square
+  const TURN_DELAY = 0.18;      // hold a new direction this long before walking
   const GAME_MIN_PER_SEC = 6.5; // how fast the clock runs
   const PEN = { x1: 13, y1: 7, x2: 18, y2: 12 };
   const SAVE_KEY = "sunny-valley-farm-v1";
@@ -311,6 +313,7 @@
   let chickenTimer = 1;
   let heldDirs = [];
   let pendingDir = null;
+  let turnTimer = 0;
   let paused = false;
   let pops = [];
   let saveTimer = 0;
@@ -903,8 +906,15 @@
     if (!p.moving && !paused) {
       const dir = heldDirs[heldDirs.length - 1] || pendingDir;
       pendingDir = null;
-      if (dir) {
+      if (!dir) {
+        turnTimer = 0;
+      } else if (dir !== p.face) {
+        // A quick tap only turns the farmer, so you can aim at the next square
         p.face = dir;
+        turnTimer = TURN_DELAY;
+      } else if (turnTimer > 0) {
+        turnTimer -= dt;
+      } else {
         const [dx, dy] = DIRS[dir];
         if (canWalk(p.x + dx, p.y + dy)) {
           p.tx = p.x + dx;
@@ -1001,6 +1011,18 @@
     b.addEventListener("pointercancel", stop);
   });
   $("aBtn").addEventListener("click", act);
+
+  // Click or tap a square next to the farmer to use your tool on it
+  canvas.addEventListener("click", (e) => {
+    if (paused || p.moving) return;
+    const r = canvas.getBoundingClientRect();
+    const x = Math.floor(((e.clientX - r.left) / r.width) * W);
+    const y = Math.floor(((e.clientY - r.top) / r.height) * H);
+    const dir = Object.keys(DIRS).find((d) => p.x + DIRS[d][0] === x && p.y + DIRS[d][1] === y);
+    if (!dir) return say("Walk next to a square, then tap it to use your tool there.");
+    p.face = dir;
+    act();
+  });
 
   $("reset").onclick = () => {
     if (!confirm("Start a brand new farm? Your current farm will be lost.")) return;
