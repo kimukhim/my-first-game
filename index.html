@@ -63,6 +63,7 @@
     border: 4px solid var(--wood-dark);
     border-radius: 12px;
     background: #7ccf5a;
+    cursor: pointer;
   }
   .msg {
     margin: 8px 0;
@@ -205,7 +206,8 @@
     <h3>How to play</h3>
     🚶 Walk with the <kbd>arrow keys</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>.
     Press <kbd>Space</kbd> to use your tool on the square in front of you (it has a white outline).
-    Tap an arrow quickly to <b>turn without walking</b>, or click a square next to the farmer to use your tool there.<br>
+    Tap an arrow quickly to <b>turn without walking</b>.<br>
+    🖱️ Or just <b>click any square</b> with the mouse: the farmer walks there and uses your tool on it.<br>
     🧰 Switch tools with <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd>, and change seeds with <kbd>Q</kbd>.<br>
     ⛏️ <b>Dig</b> the light green field → 🌱 <b>plant</b> seeds → 💧 <b>water</b> them every day → ✋ <b>harvest</b> when they're ready.<br>
     📦 Put your harvest in the <b>shipping bin</b> next to your house. You get paid the next morning.<br>
@@ -314,6 +316,8 @@
   let heldDirs = [];
   let pendingDir = null;
   let turnTimer = 0;
+  let walkPath = [];      // squares to walk through after a mouse click
+  let clickTarget = null; // square to use the tool on when the walk ends
   let paused = false;
   let pops = [];
   let saveTimer = 0;
@@ -906,7 +910,14 @@
     if (!p.moving && !paused) {
       const dir = heldDirs[heldDirs.length - 1] || pendingDir;
       pendingDir = null;
-      if (!dir) {
+      if (dir) {
+        // Using the keyboard cancels a mouse-click walk
+        walkPath = [];
+        clickTarget = null;
+      }
+      if (walkPath.length || clickTarget) {
+        stepAlongPath();
+      } else if (!dir) {
         turnTimer = 0;
       } else if (dir !== p.face) {
         // A quick tap only turns the farmer, so you can aim at the next square
@@ -1012,16 +1023,71 @@
   });
   $("aBtn").addEventListener("click", act);
 
-  // Click or tap a square next to the farmer to use your tool on it
+  // ---------- Mouse: click any square to walk there and use your tool ----------
+  function dirTo(fromX, fromY, toX, toY) {
+    return Object.keys(DIRS).find((d) => fromX + DIRS[d][0] === toX && fromY + DIRS[d][1] === toY);
+  }
+
+  // Shortest walk to a square right next to (tx, ty)
+  function findPath(sx, sy, tx, ty) {
+    const goals = new Set(Object.values(DIRS).map(([dx, dy]) => key(tx + dx, ty + dy)));
+    const start = key(sx, sy);
+    if (goals.has(start)) return [];
+    const prev = { [start]: null };
+    const queue = [[sx, sy]];
+    while (queue.length) {
+      const [x, y] = queue.shift();
+      for (const [dx, dy] of Object.values(DIRS)) {
+        const nx = x + dx, ny = y + dy, k = key(nx, ny);
+        if (k in prev || !canWalk(nx, ny)) continue;
+        prev[k] = key(x, y);
+        if (goals.has(k)) {
+          const path = [];
+          for (let c = k; c !== start; c = prev[c]) path.unshift(c.split(",").map(Number));
+          return path;
+        }
+        queue.push([nx, ny]);
+      }
+    }
+    return null;
+  }
+
+  function stepAlongPath() {
+    if (walkPath.length) {
+      const [nx, ny] = walkPath.shift();
+      p.face = dirTo(p.x, p.y, nx, ny) || p.face;
+      if (canWalk(nx, ny)) {
+        p.tx = nx;
+        p.ty = ny;
+        p.t = 0;
+        p.moving = true;
+      } else {
+        walkPath = [];
+        clickTarget = null;
+        say("Something is in the way! Click again.");
+      }
+      return;
+    }
+    const [tx, ty] = clickTarget;
+    clickTarget = null;
+    const dir = dirTo(p.x, p.y, tx, ty);
+    if (!dir) return;
+    p.face = dir;
+    act();
+  }
+
   canvas.addEventListener("click", (e) => {
-    if (paused || p.moving) return;
+    if (paused) return;
     const r = canvas.getBoundingClientRect();
     const x = Math.floor(((e.clientX - r.left) / r.width) * W);
     const y = Math.floor(((e.clientY - r.top) / r.height) * H);
-    const dir = Object.keys(DIRS).find((d) => p.x + DIRS[d][0] === x && p.y + DIRS[d][1] === y);
-    if (!dir) return say("Walk next to a square, then tap it to use your tool there.");
-    p.face = dir;
-    act();
+    const sx = p.moving ? p.tx : p.x, sy = p.moving ? p.ty : p.y;
+    if (x === sx && y === sy) return say("That's where you're standing. Click the square you want to work on.");
+    const path = findPath(sx, sy, x, y);
+    if (path === null) return say("The farmer can't reach that square. Try clicking closer to a path.");
+    heldDirs = [];
+    walkPath = path;
+    clickTarget = [x, y];
   });
 
   $("reset").onclick = () => {
