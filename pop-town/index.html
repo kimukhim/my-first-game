@@ -1740,7 +1740,76 @@ const CODE_ITEM=Object.fromEntries(Object.entries(ITEM_CODE).map(([a,b])=>[b,a])
 const MOUNT_CODE=['','turtle','kangaroo','duck'];
 const CODE_CHARS='ABCDEFGHJKLMNPQRSTUVWXYZ';
 const GAME_URL='https://claude.ai/artifact/17Q64BqmW8eMbgPNsRqWx2';
-const inviteLink=()=>`${GAME_URL}#room-${NET.code.toLowerCase()}`;
+const inviteLink=()=>`${NET.mode==='p2p'?location.href.split('#')[0]:GAME_URL}#room-${NET.code.toLowerCase()}`;
+
+
+/* Outside claude.ai (GitHub Pages, a saved copy) rooms run peer-to-peer through PeerJS.
+   peerRoom() returns an object shaped like a claude.ai named room, so the rest of the online code is shared. */
+function peerRoom(code,asHost){
+  return new Promise((resolve,reject)=>{
+    const id='poptown-'+code.toLowerCase(),listeners=[],me={presence:{}},conns=new Map();
+    let last=new Set(),hostP=null,roster=[],conn=null,done=false;
+    const peer=asHost?new Peer(id):new Peer();
+    const mk=(pid,isMe,presence)=>({peer:pid,isMe,sameTab:isMe,by:null,kind:'viewer',guest:false,presence});
+    const list=()=>{
+      const out=[mk(asHost?'host':peer.id,true,me.presence)];
+      if(asHost){for(const [pid,c] of conns)out.push(mk(pid,false,c.presence));return out}
+      if(hostP)out.push(mk('host',false,hostP));
+      for(const r of roster)if(r&&r.peer&&r.peer!==peer.id)out.push(mk(String(r.peer),false,r.presence||{}));
+      return out;
+    };
+    const fire=()=>{
+      const ps=list(),ids=new Set(ps.map(p=>p.peer));
+      const joined=ps.filter(p=>!last.has(p.peer)),left=[...last].filter(x=>!ids.has(x)).map(x=>({peer:x}));
+      last=ids;for(const f of listeners.slice())try{f({peers:ps,joined,left,updated:[]})}catch(e){}
+    };
+    const broadcast=()=>{
+      const msg={t:'h',presence:me.presence,roster:[...conns].map(([pid,c])=>({peer:pid,presence:{role:c.presence.role,look:c.presence.look}}))};
+      for(const c of conns.values())if(c.conn.open)try{c.conn.send(msg)}catch(e){}
+    };
+    const room={
+      peers:list,
+      presence(patch){
+        for(const k in patch){if(patch[k]===null)delete me.presence[k];else me.presence[k]=patch[k]}
+        if(asHost)broadcast();else if(conn&&conn.open)try{conn.send({t:'p',presence:me.presence})}catch(e){}
+        fire();return Promise.resolve();
+      },
+      onPeers(fn){listeners.push(fn);setTimeout(fire,0);return()=>{const i=listeners.indexOf(fn);if(i>=0)listeners.splice(i,1)}},
+      leave(){listeners.length=0;try{peer.destroy()}catch(e){}return Promise.resolve()}
+    };
+    const fail=c=>{if(!done){done=true;try{peer.destroy()}catch(e){}reject({code:c})}};
+    const ok=()=>{if(!done){done=true;resolve(room)}};
+    peer.on('error',err=>{const t=err&&err.type;fail(t==='unavailable-id'?'taken':t==='peer-unavailable'?'notfound':'network')});
+    if(asHost){
+      peer.on('open',ok);
+      peer.on('connection',c=>{
+        c.on('open',()=>{conns.set(c.peer,{conn:c,presence:{}});broadcast();fire()});
+        c.on('data',d=>{const e=conns.get(c.peer);if(e&&d&&d.t==='p'&&d.presence&&typeof d.presence==='object'){e.presence=d.presence;fire()}});
+        const gone=()=>{if(conns.delete(c.peer)){broadcast();fire()}};c.on('close',gone);c.on('error',gone);
+      });
+    }else{
+      peer.on('open',()=>{
+        conn=peer.connect(id,{reliable:true});
+        conn.on('open',()=>{conn.send({t:'p',presence:me.presence});ok()});
+        conn.on('data',d=>{if(d&&d.t==='h'){hostP=d.presence&&typeof d.presence==='object'?d.presence:{};roster=Array.isArray(d.roster)?d.roster:[];fire()}});
+        const gone=()=>{hostP=null;fire()};conn.on('close',gone);conn.on('error',gone);
+      });
+    }
+    setTimeout(()=>fail('timeout'),15000);
+  });
+}
+async function startP2P(){
+  try{
+    if(!window.Peer)await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)});
+    if(!window.Peer)throw new Error('no peer');
+    NET.mode='p2p';NET.room={presence:()=>Promise.resolve(),peers:()=>[]};
+    netStatus('Create a room and send the code or invite link to your friends.');
+    document.querySelectorAll('#onCreate,#onJoin').forEach(b=>b.disabled=false);
+    renderOnline();
+    const m=/^#room-([a-z]{4})$/.exec(location.hash||'');
+    if(m){openOnline();setTimeout(()=>enterRoom(m[1],false),400)}
+  }catch(e){netStatus('Online play could not load. Check your internet connection and reload the page.')}
+}
 
 function netStatus(msg){$('#netStatus').textContent=msg}
 function nameOf(by,fallback){
@@ -1754,9 +1823,9 @@ function nameOf(by,fallback){
 }
 (async()=>{
   try{
-    if(!window.claude||!window.claude.use){netStatus('Online play works when this game is opened on claude.ai.');return}
+    if(!window.claude||!window.claude.use){startP2P();return}
     const room=await claude.use('room');
-    if(!room){netStatus('Online play is not available in this view. Open the game on claude.ai while signed in.');return}
+    if(!room){startP2P();return}
     NET.room=room;NET.user=await claude.use('user');
     room.onPeers(()=>renderOnline(),()=>netStatus('Lost the connection to online play.'));
     netStatus('Create a room and share the code, or join a friend’s room.');
@@ -1764,7 +1833,7 @@ function nameOf(by,fallback){
     renderOnline();
     const m=/^#room-([a-z]{4})$/.exec(location.hash||'');
     if(m){openOnline();setTimeout(()=>enterRoom(m[1],false),600)}
-  }catch(e){netStatus('Online play is not available right now.')}
+  }catch(e){startP2P()}
 })();
 
 function openOnline(){
@@ -1776,8 +1845,8 @@ async function enterRoom(code,asHost){
   if(!NET.room)return;
   code=code.toUpperCase().replace(/[^A-Z]/g,'').slice(0,4);
   if(code.length!==4){netStatus('Room codes are 4 letters.');return}
-  try{NET.r=await NET.room.join('pop-'+code.toLowerCase())}
-  catch(e){netStatus(e&&e.code==='limit_reached'?'Too many rooms open right now. Try again soon.':'Could not open that room. Try again.');return}
+  try{NET.r=NET.mode==='p2p'?await peerRoom(code,asHost):await NET.room.join('pop-'+code.toLowerCase())}
+  catch(e){const c=e&&e.code;netStatus(c==='limit_reached'?'Too many rooms open right now. Try again soon.':c==='taken'?'That room code is already in use. Create the room again for a new code.':c==='notfound'?`No one is hosting room ${code} right now. Ask the host to create the room first.`:c==='network'?'Could not reach the online service. Check your internet connection and try again.':c==='timeout'?`Could not connect to room ${code}. Make sure the host still has the room open, then try again. Some school or office Wi-Fi blocks direct connections.`:'Could not open that room. Try again.');return}
   Object.assign(NET,{code,host:asHost,phase:'lobby',order:[],seats:[],lastB:{},inB:0,sentB:-1,sentD:null,lastF:0,lastTx:0,hostPeer:null});
   NET.r.onPeers(onRoomPeers,()=>{netStatus('The room connection closed.');leaveOnline(true)});
   if(asHost){
@@ -1959,7 +2028,7 @@ function renderOnline(){
   $('#onTitle').textContent=inRoom?`Room ${NET.code}`:'Online rooms';
   if(!inRoom){
     const list=NET.room?NET.room.peers().filter(p=>!p.isMe&&p.presence&&p.presence.host&&/^[A-Z]{4}$/.test(p.presence.host.code)):[];
-    $('#onList').innerHTML=list.length?'':'<p class="hint">No open rooms yet. Create one and send the code to your friends.</p>';
+    $('#onList').innerHTML=list.length?'':NET.mode==='p2p'?'<p class="hint">Ask the host for their 4-letter code or invite link, then join above.</p>':'<p class="hint">No open rooms yet. Create one and send the code to your friends.</p>';
     list.forEach((p,i)=>{
       const h=p.presence.host,full=h.n>=4,playing=h.st==='play';
       const row=document.createElement('div');row.className='onroom';
