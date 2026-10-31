@@ -1740,7 +1740,7 @@ const CODE_ITEM=Object.fromEntries(Object.entries(ITEM_CODE).map(([a,b])=>[b,a])
 const MOUNT_CODE=['','turtle','kangaroo','duck'];
 const CODE_CHARS='ABCDEFGHJKLMNPQRSTUVWXYZ';
 const GAME_URL='https://claude.ai/artifact/17Q64BqmW8eMbgPNsRqWx2';
-const inviteLink=()=>`${NET.mode==='p2p'?location.href.split('#')[0]:GAME_URL}#room-${NET.code.toLowerCase()}`;
+const inviteLink=()=>`${NET.mode==='p2p'?location.origin+location.pathname:GAME_URL}#room-${NET.code.toLowerCase()}`;
 
 
 /* Outside claude.ai (GitHub Pages, a saved copy) rooms run peer-to-peer through PeerJS.
