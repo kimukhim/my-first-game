@@ -299,6 +299,7 @@ kbd{font:600 12px/1 var(--f-body);background:var(--tide-2);border:1px solid var(
         <li><span class="dot" style="background:#f4c430"></span>Duck ride: fast, and flies over crates and balloons</li>
         <li>Every ride takes one splash for you, then runs off.</li>
         <li><span class="dot" style="background:#ffc83d"></span>Golden drop: splash range jumps to max</li>
+        <li><span class="dot" style="background:#ff9f1c"></span>Kick boots: walk into a balloon to kick it. It slides until it hits a wall, a crate or someone, so aim it at your rivals!</li>
         <li><span class="dot" style="background:#9b5de5"></span>Poison: a random curse for 10 seconds (slow feet, reversed controls, balloon hiccups or tiny splash). Touch another player to pass it on!</li>
         <li><span class="dot" style="background:#ff8fab"></span>Needle: pops you out of a bubble. Press your drop key while trapped (hold up to 3)</li>
       </ul>
@@ -339,7 +340,7 @@ const STAGES=[
   {name:"Barnacle's Ship",theme:'ship',boss:true}
 ];
 const DROP_RATE=.6,TRAP_T=4;
-const ITEM_COL={pod:'#49b6ff',range:'#2ec4e6',speed:'#ff5a5f',shield:'#a5e8ff',needle:'#ff8fab',poison:'#9b5de5',turtle:'#5cc35a',kangaroo:'#d9a066',duck:'#f4c430',gold:'#ffc83d'};
+const ITEM_COL={pod:'#49b6ff',range:'#2ec4e6',speed:'#ff5a5f',shield:'#a5e8ff',needle:'#ff8fab',poison:'#9b5de5',kick:'#ff9f1c',turtle:'#5cc35a',kangaroo:'#d9a066',duck:'#f4c430',gold:'#ffc83d'};
 const POISON_T=10,POISONS=['slow','reverse','auto','tiny'];
 const POISON_TXT={slow:'Slow feet',reverse:'Reversed controls',auto:'Balloon hiccups',tiny:'Tiny splash'};
 const REV={u:'d',d:'u',l:'r',r:'l'};
@@ -355,11 +356,11 @@ const THEMES={
 };
 const VS_THEMES=['forest','candy','dock','snow','park','ship'];
 const MAP_ACCENT={forest:'#4f9f46',candy:'#ff6f91',dock:'#57c1ec',snow:'#2f7d4f',park:'#5fae4c',ship:'#a46c3d'};
-const ITEM_TXT={pod:'+1 Balloon',range:'Long splash',speed:'Sneakers!',shield:'Bubble shield',needle:'Needle!',turtle:'Ride: Turtle!',kangaroo:'Ride: Kangaroo!',duck:'Ride: Duck!',gold:'Golden drop! Max splash'};
+const ITEM_TXT={pod:'+1 Balloon',range:'Long splash',speed:'Sneakers!',shield:'Bubble shield',needle:'Needle!',kick:'Kick boots! Walk into balloons',turtle:'Ride: Turtle!',kangaroo:'Ride: Kangaroo!',duck:'Ride: Duck!',gold:'Golden drop! Max splash'};
 const ENEMY={crab:{speed:1.6,hp:1},jelly:{speed:1.25,hp:1},puff:{speed:2.3,hp:2}};
 
 function rng(seed){let s=(seed>>>0)||123456789;return()=>{s^=s<<13;s>>>=0;s^=s>>>17;s^=s<<5;s>>>=0;return s/4294967296}}
-function pickItem(R){const x=R();return x<.24?'pod':x<.46?'range':x<.59?'speed':x<.67?'shield':x<.74?'needle':x<.81?'poison':x<.86?'turtle':x<.9?'kangaroo':x<.95?'duck':'gold'}
+function pickItem(R){const x=R();return x<.22?'pod':x<.43?'range':x<.55?'speed':x<.62?'shield':x<.69?'needle':x<.75?'poison':x<.82?'kick':x<.87?'turtle':x<.91?'kangaroo':x<.95?'duck':'gold'}
 function shuffled(a,R=Math.random){a=a.slice();for(let i=a.length-1;i>0;i--){const j=(R()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]]}return a}
 
 /* ---------- state ---------- */
@@ -377,7 +378,7 @@ function baseGame(mode){
 function makePlayer(i,look,human){
   const L=LOOKS[look];
   const p={...L,kind:'player',id:i,lookIdx:look,human,ctrl:human?i:-1,
-    base:{speed:L.speed,maxPods:L.pods,range:L.range,shield:!!L.shield,needles:L.needles||0,mount:null,poison:null},
+    base:{speed:L.speed,maxPods:L.pods,range:L.range,shield:!!L.shield,needles:L.needles||0,mount:null,poison:null,kick:false},
     x:0,y:0,sx:0,sy:0,shield:false,podsOut:0,lives:3,alive:true,inv:0,cool:0,wait:0,
     face:{x:0,y:1},next:null,wins:0,walk:0,aggro:.45+Math.random()*.45,think:botThink};
   resetStats(p);return p;
@@ -576,6 +577,7 @@ function applyItem(p,type){
   if(type==='needle')p.needles=Math.min(3,p.needles+1);
   if(MOUNT_SPEED[type])p.mount=type;
   if(type==='gold')p.range=8;
+  if(type==='kick')p.kick=true;
   if(type==='poison'){
     const pool=p.human?POISONS:POISONS.filter(k=>k!=='reverse');
     p.poison={kind:pool[(Math.random()*pool.length)|0],t:POISON_T};p.passCD=1;
@@ -661,10 +663,31 @@ function humanStep(p,dt){
   if(h.length){
     const [dr,dc]=DV[dirOf(p,h)];
     p.face={x:dc,y:dr};
+    if(p.kick)tryKick(p,dr,dc);
     if(dc)axisMove(p,'x',dc,spd(p)*dt);else axisMove(p,'y',dr,spd(p)*dt);
     p.walk+=dt;
   }
   if(bombReq[p.ctrl]&&!(p.mount==='kangaroo'&&punch(p)))placePod(p);
+}
+function tryKick(p,dr,dc){
+  const r=Math.round(p.y),c=Math.round(p.x),pod=G.podAt[K(r+dr,c+dc)];
+  if(!pod||pod.kick||pod.ghosts.has(p))return;
+  if(Math.abs(dc?p.x-c:p.y-r)>.2||Math.abs(dc?p.y-r:p.x-c)>.3)return;
+  const nk=K(r+2*dr,c+2*dc);
+  if(G.map[nk]||G.podAt[nk]||entities().some(e=>tileOf(e)===nk))return;
+  pod.kick={dr,dc,acc:.7};floatText(c+dc,r+dr-.5,'Kick!','#ff9f1c');sfx('place');
+}
+function slideKicked(pod,dt){
+  pod.kick.acc+=dt*9;
+  while(pod.kick&&pod.kick.acc>=1){
+    pod.kick.acc-=1;
+    const nr=pod.r+pod.kick.dr,nc=pod.c+pod.kick.dc,nk=K(nr,nc);
+    let hit=G.map[nk]||G.podAt[nk]||entities().some(e=>tileOf(e)===nk);
+    if(!hit&&G.boss&&!G.boss.dead){const s=bossSpan(G.boss);hit=nr>=s.r0&&nr<=s.r1&&nc>=s.c0&&nc<=s.c1}
+    if(hit){pod.kick=null;break}
+    G.podAt[K(pod.r,pod.c)]=null;pod.slide={r0:pod.r,c0:pod.c,t:0,dur:1/9,flat:true};
+    pod.r=nr;pod.c=nc;G.podAt[nk]=pod;pod.ghosts=new Set();
+  }
 }
 function gridStep(e,dt){
   if(e.wait>0){e.wait-=dt;return}
@@ -942,7 +965,7 @@ function step(dt){
   }
   for(const k in bombReq)bombReq[k]=false;
   for(const pod of G.pods){
-    pod.t-=dt;if(pod.slide&&(pod.slide.t+=dt)>=.22)pod.slide=null;
+    pod.t-=dt;if(pod.kick)slideKicked(pod,dt);if(pod.slide&&(pod.slide.t+=dt)>=(pod.slide.dur||.22))pod.slide=null;
     for(const e of pod.ghosts)if(e.alive===false||tileOf(e)!==K(pod.r,pod.c))pod.ghosts.delete(e);
   }
   let boom;while((boom=G.pods.find(p=>p.t<=0)))explode(boom);
@@ -1139,8 +1162,8 @@ function balloon(x,y,rx,ry,knot){
   g.fillStyle='rgba(255,255,255,.8)';ell(x-rx*.38,y-ry*.42,rx*.2,ry*.28);g.fill();
 }
 function drawPod(pod){
-  const sl=pod.slide,q=sl?Math.min(1,sl.t/.22):1;
-  const x=P(sl?sl.c0+(pod.c-sl.c0)*q:pod.c),y=P(sl?sl.r0+(pod.r-sl.r0)*q:pod.r)-(sl?Math.sin(q*Math.PI)*14:0),age=POD_T-pod.t,hot=1-pod.t/POD_T,wob=Math.sin(age*(6+age*6));
+  const sl=pod.slide,q=sl?Math.min(1,sl.t/(sl.dur||.22)):1;
+  const x=P(sl?sl.c0+(pod.c-sl.c0)*q:pod.c),y=P(sl?sl.r0+(pod.r-sl.r0)*q:pod.r)-(sl&&!sl.flat?Math.sin(q*Math.PI)*14:0),age=POD_T-pod.t,hot=1-pod.t/POD_T,wob=Math.sin(age*(6+age*6));
   const R=TS*(.3+hot*.05),rx=R*(1+wob*.08),ry=R*(1-wob*.08)*1.06,cy=y-4;
   g.fillStyle='rgba(30,50,20,.25)';ell(x,y+R*.9,R*.85,R*.28);g.fill();
   balloon(x,cy,rx,ry,pod.owner.color);
@@ -1185,6 +1208,12 @@ function drawItem(r,c,type){
     g.beginPath();g.moveTo(x,y-14);g.bezierCurveTo(x+4,y-6,x+11,y-1,x+11,y+5);g.arc(x,y+5,11,0,Math.PI);g.bezierCurveTo(x-11,y-1,x-4,y-6,x,y-14);g.closePath();
     const gd=g.createLinearGradient(x,y-14,x,y+16);gd.addColorStop(0,'#fff3b0');gd.addColorStop(1,'#e6a100');fs(gd);
     g.fillStyle='#ffffff';g.beginPath();for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,rr2=i%2?2.4:5.5;g.lineTo(x+Math.cos(a)*rr2,y+4+Math.sin(a)*rr2)}g.closePath();g.fill();
+  }else if(type==='kick'){
+    g.beginPath();g.moveTo(x-6,y-12);g.lineTo(x+2,y-12);g.lineTo(x+2,y-1);g.quadraticCurveTo(x+13,y,x+13,y+6);g.lineTo(x+13,y+9);g.lineTo(x-7,y+9);g.closePath();
+    const kg=g.createLinearGradient(x,y-12,x,y+9);kg.addColorStop(0,'#ffc15e');kg.addColorStop(1,'#e07a1f');fs(kg);
+    g.fillStyle='#5a3a26';rr(x-8,y+7,22,4,2);g.fill();
+    g.strokeStyle='#ffffff';g.lineWidth=1.6;g.beginPath();g.moveTo(x-5,y-7);g.lineTo(x+1,y-7);g.moveTo(x-5,y-3);g.lineTo(x+1,y-3);g.stroke();
+    g.strokeStyle='rgba(255,255,255,.9)';g.lineWidth=2;g.beginPath();g.moveTo(x+15,y-4);g.lineTo(x+20,y-6);g.moveTo(x+16,y+1);g.lineTo(x+21,y+1);g.stroke();
   }else if(type==='poison'){
     g.beginPath();g.moveTo(x-4,y-12);g.lineTo(x+4,y-12);g.lineTo(x+4,y-6);g.quadraticCurveTo(x+12,y-2,x+12,y+5);g.arc(x,y+5,12,0,Math.PI);g.quadraticCurveTo(x-12,y-2,x-4,y-6);g.closePath();
     const pg=g.createLinearGradient(x,y-10,x,y+17);pg.addColorStop(0,'#c9a3ff');pg.addColorStop(1,'#6a2fc0');fs(pg);
@@ -1564,7 +1593,7 @@ function hud(){
   }
   const chips=G.players.map(p=>{
     const lead=G.teams?TEAM_NAME[p.team]:G.mode==='versus'?`Wins ${'★'.repeat(p.wins)}${'☆'.repeat(Math.max(0,3-p.wins))}`:`♥ ${Math.max(0,p.lives)}`;
-    return `<div class="chip${p.alive?'':' out'}"${G.teams?` style="box-shadow:inset 4px 0 0 ${TEAM_COL[p.team]}"`:''}><i style="background:${p.color}"></i><span class="nm">${p.name}<em>${p.human?'P'+(p.id+1):'BOT'}</em></span><span class="st">${lead} · Pods ${p.maxPods} · Range ${p.range}${p.shield?' · Shield':''}${p.poison?` · ☠ ${POISON_TXT[p.poison.kind]} ${Math.ceil(p.poison.t)}s`:''}${p.mount?` · Riding ${MOUNT_NAME[p.mount]}`:''}${p.needles?` · Needle ×${p.needles}`:''}${p.trap>0?' · Trapped!':''}</span></div>`;
+    return `<div class="chip${p.alive?'':' out'}"${G.teams?` style="box-shadow:inset 4px 0 0 ${TEAM_COL[p.team]}"`:''}><i style="background:${p.color}"></i><span class="nm">${p.name}<em>${p.human?'P'+(p.id+1):'BOT'}</em></span><span class="st">${lead} · Pods ${p.maxPods} · Range ${p.range}${p.shield?' · Shield':''}${p.poison?` · ☠ ${POISON_TXT[p.poison.kind]} ${Math.ceil(p.poison.t)}s`:''}${p.kick?' · Kick':''}${p.mount?` · Riding ${MOUNT_NAME[p.mount]}`:''}${p.needles?` · Needle ×${p.needles}`:''}${p.trap>0?' · Trapped!':''}</span></div>`;
   }).join('');
   const key=names[G.mode]+sub+center+chips;
   if(key===hudCache)return;hudCache=key;
@@ -1957,7 +1986,7 @@ function makeSnap(){
   for(let k=0;k<ROWS*COLS;k++){m+=G.map[k];it+=G.items[k]?ITEM_CODE[G.items[k]]:'.'}
   return {f:++NET.frame,th:G.theme,tm:G.teams?1:0,cl:Math.max(0,Math.ceil(G.clock)),rd:G.round,tw:G.teamWins,m,it,bu:bt.join(''),
     pd:G.pods.map(p=>[p.r,p.c,Math.round(p.t*10),G.players.indexOf(p.owner)]),
-    pl:G.players.map(p=>[Math.round(p.x*100),Math.round(p.y*100),p.face.x,p.face.y,(p.alive?1:0)|(p.shield?2:0)|(p.inv>0?4:0)|(p.human?8:0),
+    pl:G.players.map(p=>[Math.round(p.x*100),Math.round(p.y*100),p.face.x,p.face.y,(p.alive?1:0)|(p.shield?2:0)|(p.inv>0?4:0)|(p.human?8:0)|(p.kick?16:0),
       Math.round((p.trap||0)*10),MOUNT_CODE.indexOf(p.mount||''),p.maxPods,p.range,p.needles||0,p.wins,p.lookIdx,p.team==null?-1:p.team,p.punchT>0?1:0,p.poison?POISONS.indexOf(p.poison.kind)+1:0,p.poison?Math.ceil(p.poison.t):0]),
     bn:G.banner?[G.banner.title,G.banner.sub]:0,
     ov:G.state==='over'?[$('#overTitle').textContent,$('#overSub').textContent]:0,
@@ -1989,7 +2018,7 @@ function applySnap(s){
     let p=G.players[i];
     if(!p||p.lookIdx!==look){p=makePlayer(i,look,!!(a[4]&8));p.x=a[0]/100;p.y=a[1]/100;G.players[i]=p}
     Object.assign(p,{tx:a[0]/100,ty:a[1]/100,face:{x:Math.sign(a[2])||0,y:Math.sign(a[3])||0},alive:!!(a[4]&1),shield:!!(a[4]&2),
-      inv:a[4]&4?((G.t*10)%2<1?.05:.15):0,human:!!(a[4]&8),trap:(+a[5]||0)/10,mount:MOUNT_CODE[a[6]]||null,maxPods:a[7],range:a[8],
+      inv:a[4]&4?((G.t*10)%2<1?.05:.15):0,human:!!(a[4]&8),kick:!!(a[4]&16),trap:(+a[5]||0)/10,mount:MOUNT_CODE[a[6]]||null,maxPods:a[7],range:a[8],
       needles:a[9],wins:a[10],team:a[12]<0?null:a[12],punchT:a[13]?.15:0,poison:a[14]?{kind:POISONS[a[14]-1]||'slow',t:+a[15]||1}:null,id:i});
   });
   const pods=(s.pd||[]).map(([r,c,t,o])=>({r,c,t:t/10,owner:G.players[o]||G.players[0]}));
